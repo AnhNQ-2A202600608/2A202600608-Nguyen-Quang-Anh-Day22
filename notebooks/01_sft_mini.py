@@ -88,6 +88,13 @@ if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
     print("Set tokenizer.pad_token = eos_token")
 
+from unsloth import get_chat_template
+tokenizer = get_chat_template(
+    tokenizer,
+    chat_template="chatml",
+)
+print("Configured tokenizer with ChatML template")
+
 # %%
 model = FastLanguageModel.get_peft_model(
     model,
