@@ -58,7 +58,10 @@ assert torch.cuda.is_available()
 # %%
 from unsloth import FastLanguageModel
 from peft import PeftModel
+import json
+import gc
 
+# STEP 1: Load base model + SFT-mini adapter
 model, tokenizer = FastLanguageModel.from_pretrained(
     model_name=BASE_MODEL,
     max_seq_length=MAX_LEN,
@@ -68,56 +71,78 @@ model, tokenizer = FastLanguageModel.from_pretrained(
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
-# Stack SFT-mini → DPO adapters
+# Stack SFT-mini
 SFT_PATH = REPO_ROOT / "adapters" / "sft-mini"
 model = PeftModel.from_pretrained(model, str(SFT_PATH))
 print(f"Loaded SFT-mini adapter from {SFT_PATH}")
 
-# %% [markdown]
-# > **Note:** The DPO adapter trained in NB3 stacks on top of SFT. To get a fully
-# > aligned merged model, we apply both adapters before merging. Unsloth's
-# > `save_pretrained_merged` handles the SFT + DPO + base merge in one shot.
-
-# %% [markdown]
-# ## 2. Save merged FP16 weights
-#
-# `save_pretrained_merged(method="merged_16bit")` produces a HuggingFace-format
-# directory you can either upload to HF Hub directly OR feed into the GGUF
-# converter in step 3.
-
-# %%
-# This re-loads the model with both SFT and DPO adapters merged into base weights.
-# Output is FP16 (or BF16 on Ampere+) HF-format weights ready for inference.
+# Save SFT-merged model
 model.save_pretrained_merged(
     str(MERGED_PATH),
     tokenizer,
     save_method="merged_16bit",
 )
-print(f"Saved merged FP16 to {MERGED_PATH}")
+print(f"Saved merged SFT FP16 to {MERGED_PATH}")
 
-# Free GPU memory before GGUF conversion (which spawns a subprocess that needs RAM)
-import gc
-
+# Free memory before loading again
 del model
 gc.collect()
 torch.cuda.empty_cache()
 
-# %% [markdown]
-# ## 3. Quantize to GGUF Q4_K_M
-#
-# Q4_K_M is the sweet spot: ~4× compression vs FP16, minimal quality loss.
-# Unsloth wraps llama.cpp's `quantize` binary — first run downloads + compiles
-# llama.cpp (~3 min) then quantizes (~30 s).
+# Patch config.json of SFT-merged model to remove quantization_config
+config_path = MERGED_PATH / "config.json"
+if config_path.exists():
+    with open(config_path, "r") as f:
+        config = json.load(f)
+    if "quantization_config" in config:
+        del config["quantization_config"]
+        with open(config_path, "w") as f:
+            json.dump(config, f, indent=2)
+        print("Removed quantization_config from SFT-merged config.json")
 
-# %%
-# Reload the merged model — Unsloth's GGUF saver expects a live model handle.
+# STEP 2: Load SFT-merged model + DPO adapter
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name=str(MERGED_PATH),
+    max_seq_length=MAX_LEN,
+    dtype=None,
+    load_in_4bit=False,  # Load the FP16 merged SFT model
+)
+
+# Load DPO adapter on top of the SFT-merged weights
+model = PeftModel.from_pretrained(model, str(DPO_PATH))
+print(f"Loaded DPO adapter from {DPO_PATH} on top of SFT-merged weights")
+
+# Save final SFT+DPO merged model
+model.save_pretrained_merged(
+    str(MERGED_PATH),
+    tokenizer,
+    save_method="merged_16bit",
+)
+print(f"Saved final SFT+DPO merged FP16 to {MERGED_PATH}")
+
+# Free memory
+del model
+gc.collect()
+torch.cuda.empty_cache()
+
+# Patch final config.json to remove quantization_config again (in case save_pretrained_merged re-introduced it)
+if config_path.exists():
+    with open(config_path, "r") as f:
+        config = json.load(f)
+    if "quantization_config" in config:
+        del config["quantization_config"]
+        with open(config_path, "w") as f:
+            json.dump(config, f, indent=2)
+        print("Removed quantization_config from final merged config.json")
+
+# STEP 3: Reload the final merged model for GGUF quantization
 from unsloth import FastLanguageModel as FLM
 
 model, tokenizer = FLM.from_pretrained(
     model_name=str(MERGED_PATH),
     max_seq_length=MAX_LEN,
     dtype=None,
-    load_in_4bit=False,    # already merged; load full precision
+    load_in_4bit=False,
 )
 
 # %%
