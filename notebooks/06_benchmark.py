@@ -97,6 +97,8 @@ def run_lm_eval(adapter_path, tasks, limit, num_fewshot, label):
     if not out_files:
         print("WARN: lm-eval didn't write results JSON. STDOUT tail:")
         print(proc.stdout[-1000:])
+        print("STDERR tail:")
+        print(proc.stderr[-2000:])
         return {"error": "no_results"}
     return json.loads(out_files[-1].read_text())["results"]
 
