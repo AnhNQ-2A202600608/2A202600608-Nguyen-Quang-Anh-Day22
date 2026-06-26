@@ -82,7 +82,7 @@ def run_lm_eval(adapter_path, tasks, limit, num_fewshot, label):
     cmd = [
         "lm_eval",
         "--model", "hf",
-        "--model_args", f"pretrained={base},peft={adapter_path},load_in_4bit=True",
+        "--model_args", f"pretrained={base},peft={adapter_path}",
         "--tasks", tasks,
         "--num_fewshot", str(num_fewshot),
         "--limit", str(limit),
