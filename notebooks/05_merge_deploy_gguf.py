@@ -61,20 +61,14 @@ from peft import PeftModel
 import json
 import gc
 
-# STEP 1: Load base model + SFT-mini adapter
+# STEP 1: Load SFT model directly using Unsloth's native loader (avows PeftModel merging issues)
+SFT_PATH = REPO_ROOT / "adapters" / "sft-mini"
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name=BASE_MODEL,
+    model_name=str(SFT_PATH),
     max_seq_length=MAX_LEN,
     dtype=None,
     load_in_4bit=True,
 )
-if tokenizer.pad_token is None:
-    tokenizer.pad_token = tokenizer.eos_token
-
-# Stack SFT-mini
-SFT_PATH = REPO_ROOT / "adapters" / "sft-mini"
-model = PeftModel.from_pretrained(model, str(SFT_PATH))
-print(f"Loaded SFT-mini adapter from {SFT_PATH}")
 
 # Save SFT-merged model
 model.save_pretrained_merged(
@@ -100,17 +94,34 @@ if config_path.exists():
             json.dump(config, f, indent=2)
         print("Removed quantization_config from SFT-merged config.json")
 
-# STEP 2: Load SFT-merged model + DPO adapter
+# STEP 2: Temporarily patch DPO adapter config to use the SFT-merged model as its base
+dpo_config_path = DPO_PATH / "adapter_config.json"
+orig_base = None
+if dpo_config_path.exists():
+    with open(dpo_config_path, "r") as f:
+        dpo_config = json.load(f)
+    orig_base = dpo_config.get("base_model_name_or_path")
+    dpo_config["base_model_name_or_path"] = str(MERGED_PATH)
+    with open(dpo_config_path, "w") as f:
+        json.dump(dpo_config, f, indent=2)
+    print(f"Temporarily changed DPO base_model_name_or_path to {MERGED_PATH}")
+
+# Load SFT-merged model + DPO adapter natively
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name=str(MERGED_PATH),
+    model_name=str(DPO_PATH),
     max_seq_length=MAX_LEN,
     dtype=None,
     load_in_4bit=False,  # Load the FP16 merged SFT model
 )
 
-# Load DPO adapter on top of the SFT-merged weights
-model = PeftModel.from_pretrained(model, str(DPO_PATH))
-print(f"Loaded DPO adapter from {DPO_PATH} on top of SFT-merged weights")
+# Restore original base model in config
+if orig_base and dpo_config_path.exists():
+    with open(dpo_config_path, "r") as f:
+        dpo_config = json.load(f)
+    dpo_config["base_model_name_or_path"] = orig_base
+    with open(dpo_config_path, "w") as f:
+        json.dump(dpo_config, f, indent=2)
+    print("Restored original base_model_name_or_path in DPO adapter config")
 
 # Save final SFT+DPO merged model
 model.save_pretrained_merged(
