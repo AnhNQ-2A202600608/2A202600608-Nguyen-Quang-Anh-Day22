@@ -53,6 +53,10 @@ def main():
     from trl import DPOConfig, DPOTrainer
     from unsloth import FastLanguageModel
 
+    # Force disable xFormers on T4 to avoid xformers GQA backward NotImplementedError
+    if tier == "T4":
+        FastLanguageModel.disable_xFormers = True
+
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=base_model, max_seq_length=max_len, dtype=None, load_in_4bit=True,
     )
