@@ -111,10 +111,10 @@ Việc diễn giải kết quả đánh giá số lượng thông qua 3 bài tes
 ## Bonus
 
 - [x] Đã làm β-sweep (rigor add-on +6)
-- [ ] Đã push lên HuggingFace Hub (Submission Option B, +5)
-- [x] Đã release GGUF với multiple quantizations (+3)
-- [ ] Đã link W&B run public (+2)
-- [ ] Đã làm cross-judge comparison (+4)
+- [x] Đã push lên HuggingFace Hub (Submission Option B, +5) -> [DPO Adapter Repo](https://huggingface.co/AnhNQ-2A202600608/2A202600608-Nguyen-Quang-Anh-Day22-DPO)
+- [x] Đã release GGUF với multiple quantizations (+3) -> [GGUF Model Repo](https://huggingface.co/AnhNQ-2A202600608/2A202600608-Nguyen-Quang-Anh-Day22-GGUF)
+- [x] Đã link W&B run public (+2)
+- [x] Đã làm cross-judge comparison (+4)
 - [ ] Đã làm `BONUS-CHALLENGE.md` provocation (ungraded — link `bonus/` folder)
 
 ---

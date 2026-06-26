@@ -250,6 +250,35 @@ deploy_meta = {
 )
 print("Saved data/eval/deploy_meta.json")
 
+# Push GGUF file to HuggingFace Hub
+try:
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=REPO_ROOT / ".env")
+    hf_token = os.environ.get("HF_TOKEN")
+    if hf_token:
+        from huggingface_hub import HfApi
+        api = HfApi()
+        print("Creating GGUF repository on HuggingFace Hub...")
+        api.create_repo(
+            repo_id="AnhNQ-2A202600608/2A202600608-Nguyen-Quang-Anh-Day22-GGUF",
+            repo_type="model",
+            exist_ok=True,
+            token=hf_token
+        )
+        print("Uploading GGUF model to HuggingFace Hub (this may take a few minutes)...")
+        api.upload_file(
+            path_or_fileobj=str(gguf_path),
+            path_in_repo=gguf_path.name,
+            repo_id="AnhNQ-2A202600608/2A202600608-Nguyen-Quang-Anh-Day22-GGUF",
+            repo_type="model",
+            token=hf_token
+        )
+        print("✓ Successfully pushed GGUF to HuggingFace Hub!")
+    else:
+        print("WARN: HF_TOKEN not found in environment. Skipping GGUF HuggingFace upload.")
+except Exception as e:
+    print(f"WARN: Failed to push GGUF to HuggingFace Hub: {e}")
+
 # %% [markdown]
 # ## 7. Submission checklist
 #

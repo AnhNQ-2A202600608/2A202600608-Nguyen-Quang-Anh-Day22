@@ -358,6 +358,21 @@ metrics = {
 print(f"Wrote metrics to {DPO_OUT / 'dpo_metrics.json'}")
 print(f"Failure mode detected: {metrics['failure_mode']}")
 
+# Push DPO adapter to HuggingFace Hub
+try:
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=REPO_ROOT / ".env")
+    hf_token = os.environ.get("HF_TOKEN")
+    if hf_token:
+        print("Uploading DPO adapter to HuggingFace Hub...")
+        trainer.model.push_to_hub("AnhNQ-2A202600608/2A202600608-Nguyen-Quang-Anh-Day22-DPO", token=hf_token)
+        tokenizer.push_to_hub("AnhNQ-2A202600608/2A202600608-Nguyen-Quang-Anh-Day22-DPO", token=hf_token)
+        print("✓ Successfully pushed DPO adapter to HuggingFace Hub!")
+    else:
+        print("WARN: HF_TOKEN not found in environment. Skipping HuggingFace upload.")
+except Exception as e:
+    print(f"WARN: Failed to push DPO adapter to HuggingFace Hub: {e}")
+
 # %% [markdown]
 # ## 7. Vibe-coding callout
 #
