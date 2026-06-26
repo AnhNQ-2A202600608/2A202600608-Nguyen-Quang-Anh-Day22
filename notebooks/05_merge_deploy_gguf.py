@@ -61,90 +61,54 @@ from peft import PeftModel
 import json
 import gc
 
-# STEP 1: Load SFT model directly using Unsloth's native loader (avows PeftModel merging issues)
+# STEP 1: Load SFT model and DPO model sequential merge using unquantized base model
+UNQUANTIZED_MAP = {
+    "unsloth/Qwen2.5-3B-bnb-4bit": "Qwen/Qwen2.5-3B",
+    "unsloth/Qwen2.5-7B-bnb-4bit": "Qwen/Qwen2.5-7B",
+}
+UNQUANTIZED_MODEL = UNQUANTIZED_MAP.get(BASE_MODEL, "Qwen/Qwen2.5-3B")
+
+print(f"Loading unquantized base model: {UNQUANTIZED_MODEL} in FP16...")
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name=UNQUANTIZED_MODEL,
+    max_seq_length=MAX_LEN,
+    dtype=None,
+    load_in_4bit=False,
+)
+
+# Apply ChatML template to tokenizer
+from unsloth import get_chat_template
+tokenizer = get_chat_template(
+    tokenizer,
+    chat_template="chatml",
+)
+
+# Load SFT adapter
 SFT_PATH = REPO_ROOT / "adapters" / "sft-mini"
-model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name=str(SFT_PATH),
-    max_seq_length=MAX_LEN,
-    dtype=None,
-    load_in_4bit=True,
-)
+model = PeftModel.from_pretrained(model, str(SFT_PATH))
+print(f"Loaded SFT-mini adapter from {SFT_PATH}")
 
-# Save SFT-merged model
-model.save_pretrained_merged(
-    str(MERGED_PATH),
-    tokenizer,
-    save_method="merged_16bit",
-)
-print(f"Saved merged SFT FP16 to {MERGED_PATH}")
+# Merge SFT weights
+model = model.merge_and_unload()
+print("Merged SFT-mini adapter weights.")
 
-# Free memory before loading again
+# Load DPO adapter
+model = PeftModel.from_pretrained(model, str(DPO_PATH))
+print(f"Loaded DPO adapter from {DPO_PATH}")
+
+# Merge DPO weights
+model = model.merge_and_unload()
+print("Merged DPO adapter weights.")
+
+# Save final merged model in standard HF FP16 format
+model.save_pretrained(str(MERGED_PATH))
+tokenizer.save_pretrained(str(MERGED_PATH))
+print(f"Saved final SFT+DPO merged model (FP16) to {MERGED_PATH}")
+
+# Free VRAM memory
 del model
 gc.collect()
 torch.cuda.empty_cache()
-
-# Patch config.json of SFT-merged model to remove quantization_config
-config_path = MERGED_PATH / "config.json"
-if config_path.exists():
-    with open(config_path, "r") as f:
-        config = json.load(f)
-    if "quantization_config" in config:
-        del config["quantization_config"]
-        with open(config_path, "w") as f:
-            json.dump(config, f, indent=2)
-        print("Removed quantization_config from SFT-merged config.json")
-
-# STEP 2: Temporarily patch DPO adapter config to use the SFT-merged model as its base
-dpo_config_path = DPO_PATH / "adapter_config.json"
-orig_base = None
-if dpo_config_path.exists():
-    with open(dpo_config_path, "r") as f:
-        dpo_config = json.load(f)
-    orig_base = dpo_config.get("base_model_name_or_path")
-    dpo_config["base_model_name_or_path"] = str(MERGED_PATH)
-    with open(dpo_config_path, "w") as f:
-        json.dump(dpo_config, f, indent=2)
-    print(f"Temporarily changed DPO base_model_name_or_path to {MERGED_PATH}")
-
-# Load SFT-merged model + DPO adapter natively
-model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name=str(DPO_PATH),
-    max_seq_length=MAX_LEN,
-    dtype=None,
-    load_in_4bit=False,  # Load the FP16 merged SFT model
-)
-
-# Restore original base model in config
-if orig_base and dpo_config_path.exists():
-    with open(dpo_config_path, "r") as f:
-        dpo_config = json.load(f)
-    dpo_config["base_model_name_or_path"] = orig_base
-    with open(dpo_config_path, "w") as f:
-        json.dump(dpo_config, f, indent=2)
-    print("Restored original base_model_name_or_path in DPO adapter config")
-
-# Save final SFT+DPO merged model
-model.save_pretrained_merged(
-    str(MERGED_PATH),
-    tokenizer,
-    save_method="merged_16bit",
-)
-print(f"Saved final SFT+DPO merged FP16 to {MERGED_PATH}")
-
-# Free memory
-del model
-gc.collect()
-torch.cuda.empty_cache()
-
-# Patch final config.json to remove quantization_config again (in case save_pretrained_merged re-introduced it)
-if config_path.exists():
-    with open(config_path, "r") as f:
-        config = json.load(f)
-    if "quantization_config" in config:
-        del config["quantization_config"]
-        with open(config_path, "w") as f:
-            json.dump(config, f, indent=2)
-        print("Removed quantization_config from final merged config.json")
 
 # STEP 3: Reload the final merged model for GGUF quantization
 from unsloth import FastLanguageModel as FLM
