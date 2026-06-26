@@ -115,7 +115,15 @@ print(f"Trainable params: {sum(p.numel() for p in model.parameters() if p.requir
 # %%
 from datasets import load_dataset
 
-ds = load_dataset(SFT_DATASET, split=f"train[:{SFT_SLICE}]")
+try:
+    ds = load_dataset(SFT_DATASET, split=f"train[:{SFT_SLICE}]")
+except Exception as e:
+    print(f"Warning: Failed to load dataset {SFT_DATASET}: {e}")
+    # Fallback to the public version
+    SFT_DATASET = "5CD-AI/Vietnamese-alpaca-gpt4-gg-translated"
+    print(f"Falling back to public dataset: {SFT_DATASET}")
+    ds = load_dataset(SFT_DATASET, split=f"train[:{SFT_SLICE}]")
+
 print(f"Loaded {len(ds)} rows. Columns: {ds.column_names}")
 print(f"\nFirst row:\n{ds[0]}")
 
@@ -123,13 +131,18 @@ print(f"\nFirst row:\n{ds[0]}")
 # Alpaca → ChatML format (Qwen2.5's native template)
 def format_alpaca_to_chat(row):
     messages = []
-    if row.get("instruction"):
-        prompt = row["instruction"]
-        if row.get("input"):
-            prompt += "\n\n" + row["input"]
+    # Dynamic field check to support both the cleaned and translated datasets
+    instruction = row.get("instruction") or row.get("instruction_vi")
+    user_input = row.get("input") or row.get("input_vi")
+    output = row.get("output") or row.get("output_vi")
+    
+    if instruction:
+        prompt = instruction
+        if user_input:
+            prompt += "\n\n" + user_input
         messages.append({"role": "user", "content": prompt})
-    if row.get("output"):
-        messages.append({"role": "assistant", "content": row["output"]})
+    if output:
+        messages.append({"role": "assistant", "content": output})
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
     return {"text": text}
 
