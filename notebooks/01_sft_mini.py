@@ -62,6 +62,9 @@ import torch
 assert torch.cuda.is_available(), "DPO needs a CUDA GPU. See HARDWARE-GUIDE.md."
 gpu = torch.cuda.get_device_properties(0)
 print(f"GPU: {gpu.name}  ({gpu.total_memory / 1e9:.1f} GB)")
+print(f"CUDA version: {torch.version.cuda}")
+print(f"PyTorch version: {torch.__version__}")
+print(f"bf16 supported: {torch.cuda.is_bf16_supported()}")
 
 # %% [markdown]
 # ## 1. Load base model with Unsloth
