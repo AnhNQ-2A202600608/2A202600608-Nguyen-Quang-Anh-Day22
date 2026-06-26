@@ -21,6 +21,7 @@
 
 # %%
 import os
+os.environ["UNSLOTH_DISABLE_STATISTICS"] = "1"
 from pathlib import Path
 
 COMPUTE_TIER = os.environ.get("COMPUTE_TIER", "T4").upper()

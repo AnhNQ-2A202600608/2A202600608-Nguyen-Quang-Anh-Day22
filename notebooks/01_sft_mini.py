@@ -23,6 +23,7 @@
 
 # %%
 import os
+os.environ["UNSLOTH_DISABLE_STATISTICS"] = "1"
 from pathlib import Path
 
 # Tier detection. Defaults to T4 if env not set.

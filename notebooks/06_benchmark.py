@@ -27,6 +27,7 @@
 
 # %%
 import os
+os.environ["UNSLOTH_DISABLE_STATISTICS"] = "1"
 import json
 import gc
 from pathlib import Path

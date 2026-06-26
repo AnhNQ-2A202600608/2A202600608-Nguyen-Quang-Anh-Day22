@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+os.environ["UNSLOTH_DISABLE_STATISTICS"] = "1"
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
