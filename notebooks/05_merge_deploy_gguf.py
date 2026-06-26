@@ -131,6 +131,14 @@ model.save_pretrained_gguf(
 )
 print(f"Saved GGUF Q4_K_M to {GGUF_DIR}")
 
+# Move file to GGUF_DIR if it was saved in the local model_gguf path due to Unsloth quirk
+expected_path = MERGED_PATH.parent / f"{MERGED_PATH.name}_gguf"
+if expected_path.exists():
+    import shutil
+    for f in expected_path.glob("*.gguf"):
+        shutil.move(str(f), str(GGUF_DIR / f.name))
+    print(f"Moved GGUF files to {GGUF_DIR}")
+
 # %% [markdown]
 # ### 3a. Optional — additional quantization tiers (for the +3 rigor add-on)
 
