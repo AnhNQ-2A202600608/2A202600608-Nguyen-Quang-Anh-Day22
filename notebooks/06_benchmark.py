@@ -196,6 +196,12 @@ def generate_with_adapter(adapter_path, prompts, max_new_tokens=256):
     )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+
+    from unsloth import get_chat_template
+    tokenizer = get_chat_template(
+        tokenizer,
+        chat_template="chatml",
+    )
     model = PeftModel.from_pretrained(model, str(adapter_path))
     FastLanguageModel.for_inference(model)
 

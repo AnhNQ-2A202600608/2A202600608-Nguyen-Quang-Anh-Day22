@@ -59,6 +59,12 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    from unsloth import get_chat_template
+    tokenizer = get_chat_template(
+        tokenizer,
+        chat_template="chatml",
+    )
+
     model = PeftModel.from_pretrained(model, args.sft_path, is_trainable=True)
     model = FastLanguageModel.get_peft_model(
         model, r=16, lora_alpha=32, lora_dropout=0.0, bias="none",
